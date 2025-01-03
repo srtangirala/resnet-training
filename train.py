@@ -18,39 +18,59 @@ def get_transforms():
                            std=[0.229, 0.224, 0.225])
     ])
 
-def get_data(subset_size=None):
+def get_data(subset_size=None, train=True):
     """
     Load and prepare the dataset
     Args:
         subset_size (int): If provided, return only a subset of data
+        train (bool): If True, return training data, else test data
     """
     transform = get_transforms()
-    trainset = torchvision.datasets.CIFAR10(
+    dataset = torchvision.datasets.CIFAR10(
         root='./data', 
-        train=True,
+        train=train,
         download=True, 
         transform=transform
     )
     
     if subset_size:
-        indices = torch.randperm(len(trainset))[:subset_size]
-        trainset = Subset(trainset, indices)
+        indices = torch.randperm(len(dataset))[:subset_size]
+        dataset = Subset(dataset, indices)
     
-    trainloader = DataLoader(
-        trainset,
+    dataloader = DataLoader(
+        dataset,
         batch_size=32,
-        shuffle=True,
+        shuffle=True if train else False,
         num_workers=2
     )
     
-    return trainloader
+    return dataloader
 
-def train_model(model, trainloader, epochs=100, device='cuda'):
+def evaluate_model(model, testloader, device):
+    """
+    Evaluate the model on test data
+    """
+    model.eval()
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():
+        for inputs, labels in testloader:
+            inputs, labels = inputs.to(device), labels.to(device)
+            outputs = model(inputs)
+            _, predicted = outputs.max(1)
+            total += labels.size(0)
+            correct += predicted.eq(labels).sum().item()
+    
+    return 100. * correct / total
+
+def train_model(model, trainloader, testloader, epochs=100, device='cuda'):
     """
     Train the model
     Args:
         model: The ResNet50 model
         trainloader: DataLoader for training data
+        testloader: DataLoader for test data
         epochs (int): Number of epochs to train
         device (str): Device to train on ('cuda' or 'cpu')
     """
@@ -100,18 +120,19 @@ def train_model(model, trainloader, epochs=100, device='cuda'):
         epoch_acc = 100. * correct / total
         avg_loss = running_loss/len(trainloader)
         
-        # Update epoch status with more detailed format
-        epoch_pbar.write(f'Epoch {epoch+1}: Loss: {avg_loss:.3f} | Accuracy: {epoch_acc:.2f}%')
+        # Evaluate on test data
+        test_acc = evaluate_model(model, testloader, device)
+        epoch_pbar.write(f'Epoch {epoch+1}: Train Loss: {avg_loss:.3f} | Train Acc: {epoch_acc:.2f}% | Test Acc: {test_acc:.2f}%')
         
-        scheduler.step(epoch_acc)
+        scheduler.step(test_acc)  # Using test accuracy for scheduler
         
-        if epoch_acc > best_acc:
-            best_acc = epoch_acc
+        if test_acc > best_acc:
+            best_acc = test_acc
             save_model(model, 'best_model.pth')
-            epoch_pbar.write(f'New best accuracy: {epoch_acc:.2f}%')
-            
-        if epoch_acc > 70:
-            epoch_pbar.write(f"\nReached target accuracy of 70%!")
+            epoch_pbar.write(f'New best test accuracy: {test_acc:.2f}%')
+        
+        if test_acc > 70:
+            epoch_pbar.write(f"\nReached target accuracy of 70% on test data!")
             break
 
 if __name__ == "__main__":
@@ -119,11 +140,12 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    # Get data
-    trainloader = get_data(subset_size=5000)  # Using subset for initial testing
+    # Get train and test data
+    trainloader = get_data(subset_size=5000, train=True)
+    testloader = get_data(subset_size=1000, train=False)
     
     # Initialize model
     model = get_model(num_classes=10)
     
     # Train model
-    train_model(model, trainloader, epochs=20, device=device) 
+    train_model(model, trainloader, testloader, epochs=20, device=device) 
