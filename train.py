@@ -148,4 +148,4 @@ if __name__ == "__main__":
     model = get_model(num_classes=10)
     
     # Train model
-    train_model(model, trainloader, testloader, epochs=20, device=device) 
+    train_model(model, trainloader, testloader, epochs=30, device=device) 
