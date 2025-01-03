@@ -3,6 +3,7 @@ import torch
 import torchvision.transforms as transforms
 from PIL import Image
 from torchvision.models import resnet50
+import torch.nn as nn
 
 # Load model
 model = resnet50(pretrained=False)

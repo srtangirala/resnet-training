@@ -65,8 +65,8 @@ def train_model(model, trainloader, epochs=100, device='cuda'):
     
     best_acc = 0.0
     
-    # Create epoch progress bar
-    epoch_pbar = tqdm(range(epochs), desc='Training')
+    # Create epoch progress bar without a description (we'll use it for stats only)
+    epoch_pbar = tqdm(range(epochs), desc='Training Progress', position=0)
     
     for epoch in epoch_pbar:
         model.train()
@@ -74,8 +74,11 @@ def train_model(model, trainloader, epochs=100, device='cuda'):
         correct = 0
         total = 0
         
-        # Create batch progress bar
-        batch_pbar = tqdm(trainloader, leave=False, desc=f'Epoch {epoch+1}')
+        # Create batch progress bar with position below epoch bar
+        batch_pbar = tqdm(trainloader, 
+                         desc=f'Epoch {epoch+1}', 
+                         position=1, 
+                         leave=True)
         
         for inputs, labels in batch_pbar:
             inputs, labels = inputs.to(device), labels.to(device)
@@ -97,20 +100,18 @@ def train_model(model, trainloader, epochs=100, device='cuda'):
         epoch_acc = 100. * correct / total
         avg_loss = running_loss/len(trainloader)
         
-        # Update epoch progress bar
-        epoch_pbar.set_postfix({
-            'loss': f'{avg_loss:.3f}',
-            'accuracy': f'{epoch_acc:.2f}%'
-        })
+        # Update epoch status with more detailed format
+        epoch_pbar.write(f'Epoch {epoch+1}: Loss: {avg_loss:.3f} | Accuracy: {epoch_acc:.2f}%')
         
         scheduler.step(epoch_acc)
         
         if epoch_acc > best_acc:
             best_acc = epoch_acc
             save_model(model, 'best_model.pth')
+            epoch_pbar.write(f'New best accuracy: {epoch_acc:.2f}%')
             
         if epoch_acc > 70:
-            print(f"\nReached target accuracy of 70%!")
+            epoch_pbar.write(f"\nReached target accuracy of 70%!")
             break
 
 if __name__ == "__main__":
@@ -125,4 +126,4 @@ if __name__ == "__main__":
     model = get_model(num_classes=10)
     
     # Train model
-    train_model(model, trainloader, epochs=10, device=device) 
+    train_model(model, trainloader, epochs=20, device=device) 
